@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=240,height=282,initial-scale=1.0,maximum-scale=1.0,user-scalable=no">
+<title>R1 Game Pidgeon</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;}
+html,body{width:240px;height:282px;overflow:hidden;background:#111;color:#fff;font-family:monospace;font-size:10px;}
+.screen{position:absolute;inset:0;padding:6px;display:none;flex-direction:column;align-items:center;gap:6px;}
+.screen.active{display:flex;}
+h1{font-size:12px;}
+button{font-family:monospace;font-size:9px;background:#333;color:#fff;border:1px solid #888;border-radius:4px;padding:4px 6px;}
+.grid{display:grid;gap:4px;}
+#wordleGrid{grid-template-columns:repeat(5,34px);}
+.box{width:34px;height:34px;border:1px solid #555;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:bold;}
+.kb{display:flex;flex-wrap:wrap;gap:2px;justify-content:center;max-width:228px;}
+.kb button{width:20px;height:22px;padding:0;}
+.ttt{grid-template-columns:repeat(3,64px);}
+.ttt button{width:64px;height:64px;font-size:24px;}
+.canvas{border:1px solid #555;background:#0a2;}
+.small{font-size:8px;opacity:.8;}
+</style>
+</head>
+<body>
+<div id="menu" class="screen active">
+  <h1>R1 GAME PIDGEON</h1>
+  <button onclick="show('wordle')">Wordle</button>
+  <button onclick="show('hangman')">Hangman</button>
+  <button onclick="show('ttt')">Tic-Tac-Toe</button>
+  <button onclick="show('golf')">Mini Golf</button>
+  <div class="small">Local turn-based games for R1</div>
+</div>
+
+<div id="wordle" class="screen">
+  <h1>WORDLE</h1>
+  <div id="wordleGrid"></div>
+  <div id="wordleMsg" class="small"></div>
+  <div class="kb" id="wordleKb"></div>
+  <button onclick="show('menu')">Menu</button>
+</div>
+
+<div id="hangman" class="screen">
+  <h1>HANGMAN</h1>
+  <pre id="hangmanDraw"></pre>
+  <div id="hangmanWord" style="letter-spacing:4px;font-size:14px;"></div>
+  <div id="hangmanMsg" class="small"></div>
+  <div class="kb" id="hangmanKb"></div>
+  <button onclick="newHangman()">New</button>
+  <button onclick="show('menu')">Menu</button>
+</div>
+
+<div id="ttt" class="screen">
+  <h1>TIC-TAC-TOE</h1>
+  <div id="tttMsg" class="small"></div>
+  <div class="grid ttt" id="tttGrid"></div>
+  <button onclick="newTTT()">New</button>
+  <button onclick="show('menu')">Menu</button>
+</div>
+
+<div id="golf" class="screen">
+  <h1>MINI GOLF</h1>
+  <canvas id="golfCanvas" class="canvas" width="228" height="200"></canvas>
+  <div id="golfMsg" class="small"></div>
+  <div style="display:flex;gap:4px;">
+    <button onclick="aim(-1)">Aim L</button>
+    <button onclick="putt()">Putt</button>
+    <button onclick="aim(1)">Aim R</button>
+  </div>
+  <button onclick="show('menu')">Menu</button>
+</div>
+
+<script>
+function show(id){
+  document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+  if(id==='wordle') initWordle();
+  if(id==='hangman') newHangman();
+  if(id==='ttt') newTTT();
+  if(id==='golf') initGolf();
+}
+
+// Wordle
+const WORDS=['CRANE','SLATE','TRACE','PLANT','LIGHT','WATER','STONE','BREAD','GRAPE','MONEY','HAPPY','QUEST','ZEBRA','AUDIO','EQUAL'];
+let secret='',guesses=[],current='';
+function initWordle(){
+  secret=WORDS[Math.floor(Math.random()*WORDS.length)];
+  guesses=[];current='';
+  renderWordle(); buildKb();
+}
+function buildKb(){
+  const kb=document.getElementById('wordleKb'); kb.innerHTML='';
+  'QWERTYUIOPASDFGHJKLZXCVBNM'.split('').forEach(l=>{
+    const b=document.createElement('button'); b.textContent=l; b.onclick=()=>letter(l); kb.appendChild(b);
+  });
+  const b=document.createElement('button'); b.textContent='Enter'; b.style.width='46px'; b.onclick=submitGuess; kb.appendChild(b);
+}
+function letter(l){ if(current.length<5) current+=l; renderWordle(); }
+function renderWordle(){
+  const g=document.getElementById('wordleGrid'); g.innerHTML='';
+  for(let r=0;r<6;r++){
+    const guess = r<guesses.length?guesses[r]:(r===guesses.length?current:'');
+    for(let c=0;c<5;c++){
+      const box=document.createElement('div'); box.className='box'; box.textContent=guess[c]||'';
+      g.appendChild(box);
+    }
+  }
+}
+function submitGuess(){
+  if(current.length!==5) return;
+  guesses.push(current);
+  if(current===secret){ document.getElementById('wordleMsg').textContent='You win!'; return; }
+  if(guesses.length===6){ document.getElementById('wordleMsg').textContent='Answer: '+secret; return; }
+  current=''; renderWordle();
+}
+
+// Hangman
+const HWORDS=['APPLE','BANANA','COMPUTER','PINEAPPLE','JAVASCRIPT','PYTHON','ROBOT','DRAGON'];
+let hword='', hguessed=[], hwrong=0;
+function newHangman(){
+  hword=HWORDS[Math.floor(Math.random()*HWORDS.length)];
+  hguessed=[]; hwrong=0;
+  renderHangman();
+}
+function renderHangman(){
+  const stages=['  +---+\n  |   |\n      |\n      |\n      |\n      |\n=========', '  +---+\n  |   |\n  O   |\n      |\n      |\n      |\n=========', '  +---+\n  |   |\n  O   |\n  |   |\n      |\n      |\n=========', '  +---+\n  |   |\n  O   |\n /|   |\n      |\n      |\n=========', '  +---+\n  |   |\n  O   |\n /|\\  |\n      |\n      |\n=========', '  +---+\n  |   |\n  O   |\n /|\\  |\n /    |\n      |\n=========', '  +---+\n  |   |\n  O   |\n /|\\  |\n / \\  |\n      |\n=========' ];
+  document.getElementById('hangmanDraw').textContent=stages[hwrong];
+  document.getElementById('hangmanWord').textContent=hword.split('').map(c=>hguessed.includes(c)?c:'_').join(' ');
+  document.getElementById('hangmanMsg').textContent='Wrong: '+hwrong+'/6';
+  if(hwrong>=6) document.getElementById('hangmanMsg').textContent='You lose! Word: '+hword;
+  if(hword.split('').every(c=>hguessed.includes(c))) document.getElementById('hangmanMsg').textContent='You win!';
+  const kb=document.getElementById('hangmanKb'); kb.innerHTML='';
+  'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('').forEach(l=>{
+    const b=document.createElement('button'); b.textContent=l; b.disabled=hguessed.includes(l);
+    b.onclick=()=>{ if(hguessed.includes(l)) return; hguessed.push(l); if(!hword.includes(l)) hwrong++; renderHangman(); };
+    kb.appendChild(b);
+  });
+}
+
+// TicTacToe
+let tttBoard, tttTurn;
+function newTTT(){
+  tttBoard=Array(9).fill('');
+  tttTurn='X';
+  document.getElementById('tttMsg').textContent='Your turn (X)';
+  renderTTT();
+}
+function renderTTT(){
+  const g=document.getElementById('tttGrid'); g.innerHTML='';
+  tttBoard.forEach((v,i)=>{
+    const b=document.createElement('button'); b.textContent=v;
+    b.onclick=()=>tttMove(i);
+    g.appendChild(b);
+  });
+}
+function tttMove(i){
+  if(tttBoard[i]) return;
+  if(tttTurn!=='X') return;
+  tttBoard[i]='X'; tttTurn='O'; renderTTT();
+  if(checkTTT('X')){ document.getElementById('tttMsg').textContent='You win!'; return; }
+  if(tttBoard.every(x=>x)) { document.getElementById('tttMsg').textContent='Draw'; return; }
+  // AI random
+  let empties=tttBoard.map((v,i)=>v?null:i).filter(x=>x!==null);
+  let ai=empties[Math.floor(Math.random()*empties.length)];
+  setTimeout(()=>{ tttBoard[ai]='O'; tttTurn='X'; renderTTT();
+    if(checkTTT('O')) document.getElementById('tttMsg').textContent='AI wins!';
+    else if(tttBoard.every(x=>x)) document.getElementById('tttMsg').textContent='Draw';
+    else document.getElementById('tttMsg').textContent='Your turn (X)';
+  },300);
+}
+function checkTTT(p){
+  const wins=[[0,1,2],[3,4,5],[6,7,8],[0,3,6],[1,4,7],[2,5,8],[0,4,8],[2,4,6]];
+  return wins.some(w=>w.every(i=>tttBoard[i]===p));
+}
+
+// Mini Golf
+let gx, gy, gvx, gvy, gaim=0, gstrokes=0, ghole;
+const gc=document.getElementById('golfCanvas');
+const gctx=gc.getContext('2d');
+function initGolf(){
+  ghole={x:200,y:40};
+  gx=20; gy=180; gvx=0; gvy=0; gaim=-0.7; gstrokes=0;
+  document.getElementById('golfMsg').textContent='Strokes: 0';
+  golfLoop();
+}
+function aim(d){ gaim=Math.max(-1.5,Math.min(1.5,gaim+d*0.2)); }
+function putt(){
+  if(Math.hypot(gvx, gvy)>0.05) return;
+  const power=6;
+  gvx=Math.cos(gaim)*power;
+  gvy=Math.sin(gaim)*power;
+  gstrokes++;
+  document.getElementById('golfMsg').textContent='Strokes: '+gstrokes;
+}
+function golfLoop(){
+  if(!document.getElementById('golf').classList.contains('active')) return;
+  // physics
+  gx+=gvx; gy+=gvy;
+  gvx*=0.96; gvy*=0.96;
+  if(gx<8||gx>220) gvx*=-0.8;
+  if(gy<8||gy>192) gvy*=-0.8;
+  // cup
+  if(Math.hypot(gx-ghole.x, gy-ghole.y)<6){
+    gvx=0; gvy=0;
+    document.getElementById('golfMsg').textContent='Hole in '+gstrokes+' strokes!';
+  }
+  // render
+  gctx.fillStyle='#0a6'; gctx.fillRect(0,0,228,200);
+  gctx.fillStyle='#111'; gctx.fillRect(30,60,160,20);
+  gctx.fillStyle='#fff'; gctx.beginPath(); gctx.arc(ghole.x,ghole.y,6,0,Math.PI*2); gctx.fill();
+  gctx.fillStyle='#ff0'; gctx.beginPath(); gctx.arc(gx,gy,5,0,Math.PI*2); gctx.fill();
+  // aim
+  gctx.strokeStyle='rgba(0,0,0,0.7)'; gctx.beginPath(); gctx.moveTo(gx,gy); gctx.lineTo(gx+Math.cos(gaim)*30, gy+Math.sin(gaim)*30); gctx.stroke();
+  requestAnimationFrame(golfLoop);
+}
+show('menu');
+</script>
+</body>
+</html>
+
